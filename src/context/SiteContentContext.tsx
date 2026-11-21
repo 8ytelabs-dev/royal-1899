@@ -30,6 +30,7 @@ import type {
   ServerStatusSnapshot,
   SiteContentState,
   SiteCopyState,
+  StoreCategory,
   StoreProduct,
   WantedSuspect,
 } from '../types';
@@ -62,6 +63,7 @@ interface SiteContentContextValue {
   saveRule: (rule: ServerRule) => void;
   removeRule: (ruleId: string) => void;
   updateRuleCategories: (categories: RuleCategoryMeta[]) => void;
+  updateStoreCategories: (categories: StoreCategory[]) => void;
   saveMapLocation: (location: MapLocation) => void;
   removeMapLocation: (locationId: string) => void;
   updateGuideSteps: (steps: GuideStep[]) => void;
@@ -262,6 +264,14 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const updateStoreCategories = useCallback(
+    (categories: StoreCategory[]) => {
+      setContent((prev) => ({ ...prev, storeCategories: categories }));
+      void cmsApi.replaceStoreCategories(categories).catch(logApiError);
+    },
+    [],
+  );
+
   const saveMapLocation = useCallback((location: MapLocation) => {
     setContent((prev) => ({
       ...prev,
@@ -330,6 +340,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveRule,
       removeRule,
       updateRuleCategories,
+      updateStoreCategories,
       saveMapLocation,
       removeMapLocation,
       updateGuideSteps,
@@ -348,6 +359,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveRule,
       removeRule,
       updateRuleCategories,
+      updateStoreCategories,
       saveMapLocation,
       removeMapLocation,
       updateGuideSteps,

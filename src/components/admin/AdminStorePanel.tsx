@@ -1,17 +1,20 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Check, Pencil, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { useMemo, useState, useEffect, type FormEvent } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Pencil,
+  Plus,
+  Search,
+  Star,
+  Trash2,
+} from 'lucide-react';
 import { useSiteContent } from '../../context/SiteContentContext';
-import { PRODUCT_CATEGORIES } from '../../data/products';
 import { extractSavedGallery, resolveGalleryImages } from '../../lib/mediaGallery';
 import { formatGelPrice } from '../../lib/storeLogic';
-import type { StoreProduct } from '../../types';
+import type { StoreCategory, StoreProduct } from '../../types';
 import { MediaImage } from '../MediaImage';
 import { MultiImageUploadField } from './MultiImageUploadField';
-
-const CATEGORY_OPTIONS = PRODUCT_CATEGORIES.filter((c) => c.id !== 'all') as Array<{
-  id: StoreProduct['category'];
-  label: string;
-}>;
 
 const inputClass =
   'w-full px-3.5 py-2.5 text-sm bg-[#140c07] border border-[#ece2cc]/14 hover:border-[#ece2cc]/25 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/45 focus:outline-none transition-colors';
@@ -38,24 +41,137 @@ function buildEmptyProduct(): StoreProduct {
 }
 
 export function AdminStorePanel() {
-  const { content, saveProduct, removeProduct } = useSiteContent();
+  const {
+    content,
+    saveProduct,
+    removeProduct,
+    updateStoreCategories,
+  } = useSiteContent();
+  const storeCategories = content.storeCategories;
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [editing, setEditing] = useState<StoreProduct>(() => buildEmptyProduct());
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [perksText, setPerksText] = useState(editing.perks.join('\n'));
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /* --- მაღაზიის კატეგორიების მართვა --- */
+  const [categoryDrafts, setCategoryDrafts] = useState<StoreCategory[]>(() =>
+    storeCategories.map((c) => ({ ...c })),
+  );
+  const [categoriesDirty, setCategoriesDirty] = useState(false);
+  const [categoryNotice, setCategoryNotice] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+
+  // სერვერიდან ჩატვირთვისას დრაფტების სინქრონიზაცია (თუ ლოკალური ცვლილება არ არის)
+  useEffect(() => {
+    if (!categoriesDirty) {
+      setCategoryDrafts(storeCategories.map((c) => ({ ...c })));
+    }
+  }, [storeCategories, categoriesDirty]);
+
+  const editCategory = (
+    index: number,
+    patch: Partial<StoreCategory>,
+  ) => {
+    setCategoryDrafts((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+    );
+    setCategoriesDirty(true);
+    setCategoryNotice(null);
+  };
+
+  const moveCategory = (index: number, direction: -1 | 1) => {
+    setCategoryDrafts((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setCategoriesDirty(true);
+    setCategoryNotice(null);
+  };
+
+  const addCategory = () => {
+    setCategoryDrafts((prev) => [
+      ...prev,
+      {
+        id: `store-category-${Date.now().toString(36)}`,
+        label: '',
+      },
+    ]);
+    setCategoriesDirty(true);
+    setCategoryNotice(null);
+  };
+
+  const removeCategory = (index: number) => {
+    const category = categoryDrafts[index];
+    const usedBy = content.products.filter(
+      (p) => p.category === category.id,
+    ).length;
+    if (usedBy > 0) {
+      setCategoryError(
+        `კატეგორია „${category.label}" ვერ წაიშლება — მასში ${usedBy} პროდუქტია. ჯერ გადაიტანეთ ან წაშალეთ პროდუქტები.`,
+      );
+      return;
+    }
+    setCategoryDrafts((prev) => prev.filter((_, i) => i !== index));
+    setCategoriesDirty(true);
+    setCategoryError(null);
+    setCategoryNotice(null);
+  };
+
+  const saveCategories = () => {
+    const cleaned = categoryDrafts.map((c) => ({
+      id: c.id,
+      label: c.label.trim(),
+    }));
+    if (cleaned.length === 0 || cleaned.some((c) => !c.label)) {
+      setCategoryError(
+        'ყველა კატეგორიას სჭირდება სახელი და მინიმუმ ერთი კატეგორია უნდა არსებობდეს.',
+      );
+      return;
+    }
+    // obnovit categoryLabel ყველა პროდუქტზე გადარქმეულ კატეგორიებისათვის
+    for (const product of content.products) {
+      const category = cleaned.find((c) => c.id === product.category);
+      if (category && category.label !== product.categoryLabel) {
+        saveProduct({ ...product, categoryLabel: category.label });
+      }
+    }
+    updateStoreCategories(cleaned);
+    setCategoriesDirty(false);
+    setCategoryError(null);
+    setCategoryNotice('კატეგორია შენახულია — ცვლილებები აისახა მაღაზიაზე.');
+  };
+
+  const resetCategories = () => {
+    setCategoryDrafts(storeCategories.map((c) => ({ ...c })));
+    setCategoriesDirty(false);
+    setCategoryError(null);
+    setCategoryNotice(null);
+  };
+
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return content.products;
-    return content.products.filter(
-      (p) =>
+    return content.products.filter((p) => {
+      if (selectedCategory !== 'all' && p.category !== selectedCategory) {
+        return false;
+      }
+      if (!q) {
+        return true;
+      }
+      return (
         p.name.toLowerCase().includes(q) ||
         p.categoryLabel.toLowerCase().includes(q) ||
-        p.shortDescription.toLowerCase().includes(q),
-    );
-  }, [content.products, searchQuery]);
+        p.shortDescription.toLowerCase().includes(q)
+      );
+    });
+  }, [content.products, searchQuery, selectedCategory]);
 
   const selectForEdit = (product: StoreProduct) => {
     const gallery = resolveGalleryImages(product.imageUrl, product.galleryImages);
@@ -95,7 +211,8 @@ export function AdminStorePanel() {
     }
 
     const catMeta =
-      CATEGORY_OPTIONS.find((c) => c.id === editing.category) ?? CATEGORY_OPTIONS[0];
+      storeCategories.find((c) => c.id === editing.category) ??
+      storeCategories[0] ?? { id: 'property', label: 'ქონება' };
     const generatedId =
       editing.id || `product-${Date.now().toString(36)}`;
     const parsedPerks = perksText
@@ -133,6 +250,118 @@ export function AdminStorePanel() {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-7 items-start">
+      {/* Store Categories Management */}
+      <div className="col-span-full bg-[#22150d] border border-[#ece2cc]/10 rounded-lg p-5 lg:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-semibold text-[#ece2cc]">
+              მაღაზიის კატეგორიები
+            </h2>
+            <p className="text-xs text-[#c2b398] mt-0.5">
+              დაამატეთ, რედაქტირეთ ან გადაალაგეთ კატეგორიები — თანმიმდევრობა
+              ზუსტად ასე გამოჩნდება მაღაზიის გვერდზე.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {categoriesDirty && (
+              <button
+                type="button"
+                onClick={resetCategories}
+                className="px-3 py-2 text-xs font-medium text-[#c2b398] hover:text-[#ece2cc] bg-[#140c07] border border-[#ece2cc]/12 rounded-md cursor-pointer"
+              >
+                გაუქმება
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={addCategory}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#140c07] border border-[#dcb975]/40 text-[#dcb975] hover:border-[#dcb975] rounded-md cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>კატეგორიის დამატება</span>
+            </button>
+            <button
+              type="button"
+              onClick={saveCategories}
+              disabled={!categoriesDirty}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#dcb975] text-[#1a1009] hover:bg-[#e7c98b] rounded-md cursor-pointer whitespace-nowrap disabled:opacity-45 disabled:cursor-default"
+            >
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>კატეგორიების შენახვა</span>
+            </button>
+          </div>
+        </div>
+
+        {categoryNotice && (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-md bg-[#140c07] border border-[#dcb975]/40 text-xs text-[#dcb975]">
+            <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>{categoryNotice}</span>
+          </div>
+        )}
+        {categoryError && (
+          <div className="px-3.5 py-2.5 rounded-md bg-[#3c1b15] border border-[#e68a73]/40 text-xs text-[#f2b5a4]">
+            {categoryError}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {categoryDrafts.map((category, index) => {
+            const productsInCategory = content.products.filter(
+              (p) => p.category === category.id,
+            ).length;
+            return (
+              <div
+                key={category.id}
+                className="flex flex-wrap items-center gap-2 bg-[#140c07] border border-[#ece2cc]/10 rounded-md px-3 py-2.5"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => moveCategory(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`კატეგორიის აწევა: ${category.label}`}
+                    className="p-1 text-[#c2b398] hover:text-[#dcb975] disabled:opacity-25 disabled:cursor-default cursor-pointer"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveCategory(index, 1)}
+                    disabled={index === categoryDrafts.length - 1}
+                    aria-label={`კატეგორიის ჩაწევა: ${category.label}`}
+                    className="p-1 text-[#c2b398] hover:text-[#dcb975] disabled:opacity-25 disabled:cursor-default cursor-pointer"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={category.label}
+                  onChange={(e) =>
+                    editCategory(index, { label: e.target.value })
+                  }
+                  placeholder="კატეგორიის სახელი (მაგ. ქონება)"
+                  aria-label="კატეგორიის სახელი"
+                  className="flex-1 min-w-40 px-3 py-2 text-sm bg-[#22150d] border border-[#ece2cc]/14 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/45 focus:outline-none"
+                />
+                <span className="text-[11px] font-mono tabular-nums text-[#c2b398] whitespace-nowrap">
+                  {productsInCategory} პროდუქტი
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeCategory(index)}
+                  aria-label={`კატეგორიის წაშლა: ${category.label}`}
+                  className="p-2 text-[#c2b398] hover:text-[#e68a73] rounded-md hover:bg-[#22150d] transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Left: Existing Products Catalog Rail */}
       <div className="xl:col-span-5 bg-[#22150d] border border-[#ece2cc]/10 rounded-lg overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-[#ece2cc]/10 flex items-center justify-between gap-3">
@@ -172,6 +401,29 @@ export function AdminStorePanel() {
               placeholder="პროდუქტის ძიება სახელით ან კატეგორიით..."
               className="w-full pl-9 pr-3 py-2 text-xs bg-[#140c07] border border-[#ece2cc]/12 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/45 focus:outline-none"
             />
+          </div>
+        </div>
+
+        {/* Category Filter Tabs */}
+        <div className="px-4 py-3 border-b border-[#ece2cc]/8 bg-[#1b100a]/60">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { id: 'all', label: 'ყველა კატეგორია' },
+              ...storeCategories,
+            ].map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedCategory(c.id)}
+                className={`px-2.5 py-1.5 text-xs rounded-md cursor-pointer transition-colors ${
+                  selectedCategory === c.id
+                    ? 'bg-[#dcb975] text-[#1a1009] font-semibold'
+                    : 'bg-[#140c07] border border-[#ece2cc]/10 text-[#c2b398] hover:text-[#ece2cc]'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -326,11 +578,16 @@ export function AdminStorePanel() {
               }
               className={inputClass}
             >
-              {CATEGORY_OPTIONS.map((c) => (
+              {storeCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
               ))}
+              {storeCategories.length === 0 && (
+                <option value="" disabled>
+                  კატეგორიაარ არსებობს — మొద대로 დაამატეთ კატეგორია
+                </option>
+              )}
             </select>
           </div>
 

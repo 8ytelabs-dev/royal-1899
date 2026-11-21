@@ -6,6 +6,7 @@ import type {
   RuleCategoryMeta,
   ServerRule,
   ServerStatusSnapshot,
+  StoreCategory,
   StoreProduct,
   WantedSuspect,
 } from '../src/types';
@@ -18,6 +19,7 @@ import type {
   ruleCategories,
   rules,
   serverStatus,
+  storeCategories,
   wantedSuspects,
 } from './schema';
 
@@ -74,6 +76,30 @@ export function productDomainToRow(
     perks: product.perks,
     position,
     updatedAt: new Date(),
+  };
+}
+
+/* ------------------------- Store categories ------------------------- */
+
+export type StoreCategoryRow = typeof storeCategories.$inferSelect;
+
+export function storeCategoryRowToDomain(
+  row: StoreCategoryRow,
+): StoreCategory {
+  return {
+    id: row.id,
+    label: row.label,
+  };
+}
+
+export function storeCategoryDomainToRow(
+  category: StoreCategory,
+  position: number,
+): typeof storeCategories.$inferInsert {
+  return {
+    id: category.id,
+    label: category.label,
+    position,
   };
 }
 

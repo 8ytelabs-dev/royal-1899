@@ -10,6 +10,7 @@ import { mapLocationsRouter } from './actions/mapLocations';
 import { mediaRouter } from './actions/media';
 import { productsRouter } from './actions/products';
 import { ruleCategoriesRouter, rulesRouter } from './actions/rules';
+import { storeCategoriesRouter } from './actions/storeCategories';
 import { serverStatusRouter } from './actions/serverStatus';
 import { siteCopyRouter } from './actions/siteCopy';
 import { STORAGE_DIR, uploadsRouter } from './actions/uploads';
@@ -36,6 +37,7 @@ app.use('/api/rules', rulesRouter);
 app.use('/api/rule-categories', ruleCategoriesRouter);
 app.use('/api/map-locations', mapLocationsRouter);
 app.use('/api/server-status', serverStatusRouter);
+app.use('/api/store-categories', storeCategoriesRouter);
 app.use('/api/guide', guideRouter);
 app.use('/api/wanted', wantedRouter);
 
