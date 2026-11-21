@@ -10,7 +10,6 @@ import {
   MapPin,
   ReceiptText,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { DiscordIcon } from '../components/DiscordIcon';
 import { MediaImage } from '../components/MediaImage';
@@ -90,7 +89,6 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
               <div className="lg:col-span-7 p-8 md:p-12 space-y-6 flex flex-col justify-between">
                 <div className="space-y-4">
                   <p className="inline-flex items-center gap-2 text-xs font-medium tracking-wider text-[#dcb975]">
-                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
                     {cabinetCopy.eyebrow}
                   </p>
                   <h1 className="font-display text-3xl md:text-4xl font-semibold text-[#ece2cc] leading-tight">
