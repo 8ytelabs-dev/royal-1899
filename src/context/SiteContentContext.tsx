@@ -4,9 +4,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
+import * as cmsApi from '../services/cmsApi';
 import {
   createDefaultSiteContent,
   deleteMapLocation,
@@ -95,8 +97,43 @@ function loadInitialContent(): SiteContentState {
   }
 }
 
+function logApiError(error: unknown) {
+  console.warn('[cms] ცვლილების ბაზაში შენახვა ვერ მოხერხდა:', error);
+}
+
 export function SiteContentProvider({ children }: { children: ReactNode }) {
   const [content, setContent] = useState<SiteContentState>(loadInitialContent);
+  const contentRef = useRef(content);
+
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  // კონტენტის ჩატვირთვა PostgreSQL ბაზიდან — სერვერი ჭეშმარიტების წყაროა.
+  // თუ ბაზა ჯერ ცარიელია, შეივსება მიმდინარე ლოკალური კონტენტით.
+  useEffect(() => {
+    let cancelled = false;
+    cmsApi
+      .fetchFullContent()
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        if (result.initialized) {
+          setContent(
+            mergeSiteContent(createDefaultSiteContent(), result.content),
+          );
+        } else {
+          void cmsApi.importContent(contentRef.current).catch(logApiError);
+        }
+      })
+      .catch(() => {
+        console.warn('[cms] API მიუწვდომელია — გამოიყენება ლოკალური ასლი');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -111,6 +148,10 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       section: K,
       patch: Partial<SiteCopyState[K]>,
     ) => {
+      const nextSection = {
+        ...contentRef.current.copy[section],
+        ...patch,
+      } as SiteCopyState[K];
       setContent((prev) => ({
         ...prev,
         copy: {
@@ -121,6 +162,21 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
           },
         },
       }));
+      void cmsApi.saveCopySection(section, nextSection).catch(logApiError);
+      // ატვირთული hero მედიის URL-ის რეგისტრაცია მედია-რეესტრში
+      if (section === 'hero' && 'media' in patch) {
+        const media = (nextSection as SiteCopyState['hero']).media;
+        if (media?.src && !media.src.startsWith('data:')) {
+          void cmsApi
+            .registerMediaAsset({
+              url: media.src,
+              type: media.type,
+              alt: media.alt,
+              context: 'hero',
+            })
+            .catch(logApiError);
+        }
+      }
     },
     [],
   );
@@ -134,6 +190,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
           ...patch,
         },
       }));
+      void cmsApi.saveServerStatus(patch).catch(logApiError);
     },
     [],
   );
@@ -143,6 +200,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       products: upsertStoreProduct(prev.products, product),
     }));
+    void cmsApi.saveProduct(product).catch(logApiError);
   }, []);
 
   const removeProduct = useCallback((productId: string) => {
@@ -150,6 +208,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       products: deleteStoreProduct(prev.products, productId),
     }));
+    void cmsApi.deleteProduct(productId).catch(logApiError);
   }, []);
 
   const saveRule = useCallback((rule: ServerRule) => {
@@ -157,6 +216,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       rules: upsertServerRule(prev.rules, rule),
     }));
+    void cmsApi.saveRule(rule).catch(logApiError);
   }, []);
 
   const removeRule = useCallback((ruleId: string) => {
@@ -164,6 +224,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       rules: deleteServerRule(prev.rules, ruleId),
     }));
+    void cmsApi.deleteRule(ruleId).catch(logApiError);
   }, []);
 
   const saveMapLocation = useCallback((location: MapLocation) => {
@@ -171,6 +232,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       mapLocations: upsertMapLocation(prev.mapLocations, location),
     }));
+    void cmsApi.saveMapLocation(location).catch(logApiError);
   }, []);
 
   const removeMapLocation = useCallback((locationId: string) => {
@@ -178,22 +240,27 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       ...prev,
       mapLocations: deleteMapLocation(prev.mapLocations, locationId),
     }));
+    void cmsApi.deleteMapLocation(locationId).catch(logApiError);
   }, []);
 
   const updateGuideSteps = useCallback((steps: GuideStep[]) => {
     setContent((prev) => ({ ...prev, guideSteps: steps }));
+    void cmsApi.replaceGuideSteps(steps).catch(logApiError);
   }, []);
 
   const updateKeybinds = useCallback((items: KeybindItem[]) => {
     setContent((prev) => ({ ...prev, keybinds: items }));
+    void cmsApi.replaceKeybinds(items).catch(logApiError);
   }, []);
 
   const updateGuideFaqs = useCallback((faqs: GuideFaqItem[]) => {
     setContent((prev) => ({ ...prev, guideFaqs: faqs }));
+    void cmsApi.replaceGuideFaqs(faqs).catch(logApiError);
   }, []);
 
   const updateWantedSuspects = useCallback((suspects: WantedSuspect[]) => {
     setContent((prev) => ({ ...prev, wantedSuspects: suspects }));
+    void cmsApi.replaceWantedSuspects(suspects).catch(logApiError);
   }, []);
 
   const importJson = useCallback((raw: string) => {
@@ -203,12 +270,14 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, error: res.error };
     }
     setContent(res.state);
+    void cmsApi.importContent(res.state).catch(logApiError);
     return { ok: true as const };
   }, []);
 
   const resetAll = useCallback(() => {
     const defaults = createDefaultSiteContent();
     setContent(defaults);
+    void cmsApi.resetContent().catch(logApiError);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
