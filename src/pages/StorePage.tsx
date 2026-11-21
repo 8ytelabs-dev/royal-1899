@@ -1,35 +1,72 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Search, X } from 'lucide-react';
+import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
 import { DiscordIcon } from '../components/DiscordIcon';
 import { MediaImage } from '../components/MediaImage';
 import { useSiteContent } from '../context/SiteContentContext';
-import { PRODUCT_CATEGORIES } from '../data/products';
-import { filterStoreProducts, formatGelPrice } from '../lib/storeLogic';
-import type { ProductCategory, StoreProduct } from '../types';
+import { formatGelPrice } from '../lib/storeLogic';
+import type { StoreProduct } from '../types';
 
 interface StorePageProps {
   onSelectProduct: (product: StoreProduct) => void;
 }
 
+type StoreOrder = 'position' | 'name' | 'priceAsc' | 'priceDesc';
+
 export function StorePage({ onSelectProduct }: StorePageProps) {
   const { content } = useSiteContent();
   const storeCopy = content.copy.store;
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [order, setOrder] = useState<StoreOrder>('position');
 
-  const filteredProducts = useMemo(
-    () => filterStoreProducts(content.products, selectedCategory, searchQuery),
-    [content.products, selectedCategory, searchQuery],
-  );
+  const normalize = (query: string) => query.trim().toLowerCase();
+
+  const baseFiltered = useMemo(() => {
+    const q = normalize(searchQuery);
+    return content.products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === 'all' || product.category === selectedCategory;
+      if (!matchesCategory) {
+        return false;
+      }
+      if (!q) {
+        return true;
+      }
+      const haystack = [
+        product.name,
+        product.categoryLabel,
+        product.shortDescription,
+        product.fullDescription,
+        ...product.perks,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [content.products, selectedCategory, searchQuery]);
+
+  const sortedProducts = useMemo(() => {
+    const next = [...baseFiltered];
+    switch (order) {
+      case 'name':
+        return next.sort((a, b) => a.name.localeCompare(b.name, 'ka'));
+      case 'priceAsc':
+        return next.sort((a, b) => a.priceGel - b.priceGel);
+      case 'priceDesc':
+        return next.sort((a, b) => b.priceGel - a.priceGel);
+      default:
+        return next;
+    }
+  }, [baseFiltered, order]);
 
   const isDefaultView = selectedCategory === 'all' && searchQuery.trim() === '';
   const spotlightProduct = isDefaultView
-    ? filteredProducts.find((p) => p.featured) ?? null
+    ? sortedProducts.find((p) => p.featured) ?? null
     : null;
   const gridProducts = spotlightProduct
-    ? filteredProducts.filter((p) => p.id !== spotlightProduct.id)
-    : filteredProducts;
+    ? sortedProducts.filter((p) => p.id !== spotlightProduct.id)
+    : sortedProducts;
 
   return (
     <div className="pt-28 md:pt-32 pb-24">
@@ -64,9 +101,12 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
           <div
             role="tablist"
             aria-label="პროდუქტების კატეგორიები"
-            className="flex items-center gap-1.5 overflow-x-auto pb-1"
+            className="min-w-0 flex items-center gap-1.5 overflow-x-auto pb-1"
           >
-            {PRODUCT_CATEGORIES.map((category) => {
+            {[
+              { id: 'all', label: 'ყველა' },
+              ...content.storeCategories,
+            ].map((category) => {
               const isActive = selectedCategory === category.id;
               return (
                 <button
@@ -114,10 +154,31 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
               </button>
             )}
           </div>
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="store-order" className="sr-only">
+              თანმიმდევრობა
+            </label>
+            <SlidersHorizontal
+              className="w-4 h-4 text-[#c2b398] shrink-0"
+              aria-hidden="true"
+            />
+            <select
+              id="store-order"
+              value={order}
+              onChange={(e) => setOrder(e.target.value as StoreOrder)}
+              className="px-3 py-2 text-xs bg-[#2c1c12] border border-[#ece2cc]/15 focus:border-[#dcb975] rounded-md text-[#ece2cc] focus:outline-none cursor-pointer"
+            >
+              <option value="position">თ منجرით</option>
+              <option value="name">სახის მიხედვით (A–Z)</option>
+              <option value="priceAsc">ფასის მიხედვით (ზემოდან ქვემოდ)</option>
+              <option value="priceDesc">ფასის მიხედვით (ქველmäßig ზემოდან)</option>
+            </select>
+          </div>
         </div>
 
         {/* Empty State */}
-        {filteredProducts.length === 0 ? (
+        {sortedProducts.length === 0 ? (
           <div
             className="my-12 py-16 px-6 text-center bg-[#2c1c12] border border-[#ece2cc]/12 rounded-xl space-y-3"
             data-testid="store-empty-state"

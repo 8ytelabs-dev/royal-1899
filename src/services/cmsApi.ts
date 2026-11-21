@@ -8,6 +8,7 @@ import type {
   ServerStatusSnapshot,
   SiteContentState,
   SiteCopyState,
+  StoreCategory,
   StoreProduct,
   WantedSuspect,
 } from '../types';
@@ -80,6 +81,15 @@ export async function saveProduct(product: StoreProduct): Promise<void> {
 export async function deleteProduct(productId: string): Promise<void> {
   await request(`/products/${encodeURIComponent(productId)}`, {
     method: 'DELETE',
+  });
+}
+
+export async function replaceStoreCategories(
+  categories: StoreCategory[],
+): Promise<void> {
+  await request('/store-categories', {
+    method: 'PUT',
+    body: JSON.stringify(categories),
   });
 }
 

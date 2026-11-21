@@ -19,6 +19,7 @@ import {
   ruleDomainToRow,
   ruleRowToDomain,
   serverStatusRowToDomain,
+  storeCategoryRowToDomain,
   wantedDomainToRow,
   wantedRowToDomain,
 } from '../mappers';
@@ -32,6 +33,7 @@ import {
   rules,
   serverStatus,
   siteCopy,
+  storeCategories,
   wantedSuspects,
 } from '../schema';
 import { fetchLiveStatus } from './serverStatus';
@@ -55,6 +57,7 @@ export async function readFullContent(): Promise<{
     productRows,
     ruleRows,
     ruleCategoryRows,
+    storeCategoryRows,
     locationRows,
     stepRows,
     keybindRows,
@@ -67,6 +70,7 @@ export async function readFullContent(): Promise<{
     db.select().from(products).orderBy(products.position),
     db.select().from(rules).orderBy(rules.position),
     db.select().from(ruleCategories).orderBy(ruleCategories.position),
+    db.select().from(storeCategories).orderBy(storeCategories.position),
     db.select().from(mapLocations).orderBy(mapLocations.position),
     db.select().from(guideSteps).orderBy(guideSteps.position),
     db.select().from(keybinds).orderBy(keybinds.position),
@@ -100,6 +104,10 @@ export async function readFullContent(): Promise<{
         ruleCategoryRows.length > 0
           ? ruleCategoryRows.map(ruleCategoryRowToDomain)
           : defaults.ruleCategories,
+      storeCategories:
+        storeCategoryRows.length > 0
+          ? storeCategoryRows.map(storeCategoryRowToDomain)
+          : defaults.storeCategories,
       mapLocations: locationRows.map(mapLocationRowToDomain),
       guideSteps: stepRows.map(guideStepRowToDomain),
       keybinds: keybindRows.map(keybindRowToDomain),

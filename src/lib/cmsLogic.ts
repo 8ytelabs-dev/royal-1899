@@ -1,6 +1,6 @@
 import { SITE_CONFIG } from '../config/siteConfig';
 import { MAP_LOCATIONS } from '../data/mapLocations';
-import { STORE_PRODUCTS } from '../data/products';
+import { PRODUCT_CATEGORIES, STORE_PRODUCTS } from '../data/products';
 import { RULE_CATEGORIES, SERVER_RULES } from '../data/rules';
 import {
   GUIDE_FAQS,
@@ -126,6 +126,9 @@ export function createDefaultSiteContent(): SiteContentState {
     copy: structuredClone(DEFAULT_SITE_COPY),
     serverStatus: { ...INITIAL_SERVER_STATUS },
     products: STORE_PRODUCTS.map((p) => ({ ...p, perks: [...p.perks] })),
+    storeCategories: PRODUCT_CATEGORIES
+      .filter((c) => c.id !== 'all')
+      .map((c) => ({ ...c })),
     rules: SERVER_RULES.map((r) => ({ ...r })),
     ruleCategories: RULE_CATEGORIES.filter((c) => c.id !== 'all').map((c) => ({
       ...c,
@@ -206,6 +209,9 @@ export function mergeSiteContent(
     products: Array.isArray(incoming.products)
       ? incoming.products
       : defaults.products,
+    storeCategories: Array.isArray(incoming.storeCategories)
+      ? incoming.storeCategories
+      : defaults.storeCategories,
     rules: Array.isArray(incoming.rules) ? incoming.rules : defaults.rules,
     ruleCategories:
       Array.isArray(incoming.ruleCategories) && incoming.ruleCategories.length > 0

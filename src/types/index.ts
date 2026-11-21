@@ -21,19 +21,18 @@ export type HeroMediaConfig =
       alt: string;
     };
 
-export type ProductCategory =
-  | 'all'
-  | 'property'
-  | 'priority'
-  | 'horses'
-  | 'business'
-  | 'apparel';
+export type ProductCategory = string;
+
+export interface StoreCategory {
+  id: string;
+  label: string;
+}
 
 export interface StoreProduct {
   id: string;
   slug: string;
   name: string;
-  category: Exclude<ProductCategory, 'all'>;
+  category: ProductCategory;
   categoryLabel: string;
   priceGel: number;
   billingCycle: string;
@@ -339,6 +338,7 @@ export interface SiteContentState {
   copy: SiteCopyState;
   serverStatus: ServerStatusSnapshot;
   products: StoreProduct[];
+  storeCategories: StoreCategory[];
   rules: ServerRule[];
   ruleCategories: RuleCategoryMeta[];
   mapLocations: MapLocation[];
