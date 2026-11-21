@@ -74,9 +74,8 @@ export function Footer({ onNavigate }: FooterProps) {
                 { route: '/rules' as AppRoute, label: 'წესების კოდექსი' },
                 { route: '/bounties' as AppRoute, label: 'ძებნილთა დაფა' },
                 { route: '/map' as AppRoute, label: 'სერვერის რუკა' },
-                { route: '/cabinet' as AppRoute, label: 'კაბინეტი' },
+                { route: '/login' as AppRoute, label: 'კაბინეტი' },
                 { route: '/guide' as AppRoute, label: 'თამაშის დაწყება' },
-                { route: '/admin' as AppRoute, label: 'ადმინ პანელი' },
               ].map((link) => (
                 <li key={link.route}>
                   <a
@@ -112,7 +111,6 @@ export function Footer({ onNavigate }: FooterProps) {
                 </a>
               </li>
               <li>ელ-ფოსტა: {general.supportEmail}</li>
-              <li>პლატფორმა: RedM · PC</li>
             </ul>
           </div>
         </div>

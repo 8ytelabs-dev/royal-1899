@@ -5,7 +5,7 @@ export type AppRoute =
   | '/map'
   | '/guide'
   | '/bounties'
-  | '/cabinet'
+  | '/login'
   | '/admin';
 
 export type HeroMediaConfig =

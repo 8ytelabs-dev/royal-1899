@@ -103,14 +103,14 @@ export function Navbar({ currentRoute, onNavigate }: NavbarProps) {
         {/* Zone 3: Cabinet + Map Right Next to Discord + Mobile Menu Trigger */}
         <div className="flex items-center gap-2 shrink-0">
           <a
-            href="/cabinet"
-            aria-current={currentRoute === '/cabinet' ? 'page' : undefined}
+            href="/login"
+            aria-current={currentRoute === '/login' ? 'page' : undefined}
             onClick={(e) => {
               e.preventDefault();
-              handleLinkClick('/cabinet');
+              handleLinkClick('/login');
             }}
             className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap shrink-0 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dcb975] ${
-              currentRoute === '/cabinet'
+              currentRoute === '/login'
                 ? 'text-[#dcb975] bg-[#2c1c12]'
                 : 'text-[#ece2cc]/85 hover:text-[#dcb975]'
             }`}
@@ -174,7 +174,7 @@ export function Navbar({ currentRoute, onNavigate }: NavbarProps) {
             className="lg:hidden bg-[#22150d] border-b border-[#ece2cc]/15 px-6 py-5 max-h-[82vh] overflow-y-auto royal-scroll"
           >
             <div className="flex flex-col gap-1">
-              {[...NAV_ITEMS, { route: '/cabinet' as AppRoute, label: 'მოთამაშის კაბინეტი' }].map(
+              {[...NAV_ITEMS, { route: '/login' as AppRoute, label: 'მოთამაშის კაბინეტი' }].map(
                 (item) => {
                   const isActive = currentRoute === item.route;
                   return (

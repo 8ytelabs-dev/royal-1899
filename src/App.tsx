@@ -30,8 +30,13 @@ function parseRouteFromPathname(pathname: string): AppRoute {
   if (pathname === '/bounties' || pathname.startsWith('/bounties/')) {
     return '/bounties';
   }
-  if (pathname === '/cabinet' || pathname.startsWith('/cabinet/')) {
-    return '/cabinet';
+  if (
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname === '/cabinet' ||
+    pathname.startsWith('/cabinet/')
+  ) {
+    return '/login';
   }
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     return '/admin';
@@ -109,7 +114,7 @@ export default function App() {
                 {route === '/bounties' && (
                   <BountiesPage onOpenMapLocation={openMapLocation} />
                 )}
-                {route === '/cabinet' && (
+                {route === '/login' && (
                   <CabinetPage onOpenMapLocation={openMapLocation} />
                 )}
                 {route === '/admin' && <AdminPage onNavigate={navigate} />}

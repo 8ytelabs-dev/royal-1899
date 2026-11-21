@@ -166,7 +166,7 @@ authRouter.get(
       sameSite: 'lax',
       maxAge: SESSION_TTL_MS,
     });
-    res.redirect('/cabinet');
+    res.redirect('/login');
   }),
 );
 

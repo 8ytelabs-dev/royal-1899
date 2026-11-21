@@ -130,3 +130,33 @@ export async function registerMediaAsset(asset: {
 }): Promise<void> {
   await request('/media', { method: 'POST', body: JSON.stringify(asset) });
 }
+
+/* ------------------------------ Auth ------------------------------ */
+
+export interface AuthUser {
+  id: string;
+  discordId: string;
+  username: string;
+  globalName: string | null;
+  avatarUrl: string | null;
+  role: string;
+}
+
+/** აბრუნებს მიმდინარე სესიის მომხმარებელს, ან null-ს თუ ავტორიზებული არ არის. */
+export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const response = await fetch(`${BASE}/auth/me`, {
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as AuthUser;
+  } catch {
+    return null;
+  }
+}
+
+export async function logoutUser(): Promise<void> {
+  await request('/auth/logout', { method: 'POST' });
+}
