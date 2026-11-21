@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
 import { DiscordIcon } from '../components/DiscordIcon';
 import { MediaImage } from '../components/MediaImage';
 import { useSiteContent } from '../context/SiteContentContext';
@@ -11,18 +11,15 @@ interface StorePageProps {
   onSelectProduct: (product: StoreProduct) => void;
 }
 
-type StoreOrder = 'position' | 'name' | 'priceAsc' | 'priceDesc';
-
 export function StorePage({ onSelectProduct }: StorePageProps) {
   const { content } = useSiteContent();
   const storeCopy = content.copy.store;
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [order, setOrder] = useState<StoreOrder>('position');
 
   const normalize = (query: string) => query.trim().toLowerCase();
 
-  const baseFiltered = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     const q = normalize(searchQuery);
     return content.products.filter((product) => {
       const matchesCategory =
@@ -46,27 +43,13 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
     });
   }, [content.products, selectedCategory, searchQuery]);
 
-  const sortedProducts = useMemo(() => {
-    const next = [...baseFiltered];
-    switch (order) {
-      case 'name':
-        return next.sort((a, b) => a.name.localeCompare(b.name, 'ka'));
-      case 'priceAsc':
-        return next.sort((a, b) => a.priceGel - b.priceGel);
-      case 'priceDesc':
-        return next.sort((a, b) => b.priceGel - a.priceGel);
-      default:
-        return next;
-    }
-  }, [baseFiltered, order]);
-
   const isDefaultView = selectedCategory === 'all' && searchQuery.trim() === '';
   const spotlightProduct = isDefaultView
-    ? sortedProducts.find((p) => p.featured) ?? null
+    ? filteredProducts.find((p) => p.featured) ?? null
     : null;
   const gridProducts = spotlightProduct
-    ? sortedProducts.filter((p) => p.id !== spotlightProduct.id)
-    : sortedProducts;
+    ? filteredProducts.filter((p) => p.id !== spotlightProduct.id)
+    : filteredProducts;
 
   return (
     <div className="pt-28 md:pt-32 pb-24">
@@ -101,7 +84,7 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
           <div
             role="tablist"
             aria-label="პროდუქტების კატეგორიები"
-            className="min-w-0 flex items-center gap-1.5 overflow-x-auto pb-1"
+            className="flex flex-1 flex-wrap items-center gap-1.5"
           >
             {[
               { id: 'all', label: 'ყველა' },
@@ -127,7 +110,7 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
             })}
           </div>
 
-          <div className="relative w-full lg:w-72">
+          <div className="relative w-full shrink-0 lg:w-72">
             <Search
               className="w-4 h-4 text-[#c2b398] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden="true"
@@ -155,30 +138,10 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <label htmlFor="store-order" className="sr-only">
-              თანმიმდევრობა
-            </label>
-            <SlidersHorizontal
-              className="w-4 h-4 text-[#c2b398] shrink-0"
-              aria-hidden="true"
-            />
-            <select
-              id="store-order"
-              value={order}
-              onChange={(e) => setOrder(e.target.value as StoreOrder)}
-              className="px-3 py-2 text-xs bg-[#2c1c12] border border-[#ece2cc]/15 focus:border-[#dcb975] rounded-md text-[#ece2cc] focus:outline-none cursor-pointer"
-            >
-              <option value="position">თ منجرით</option>
-              <option value="name">სახის მიხედვით (A–Z)</option>
-              <option value="priceAsc">ფასის მიხედვით (ზემოდან ქვემოდ)</option>
-              <option value="priceDesc">ფასის მიხედვით (ქველmäßig ზემოდან)</option>
-            </select>
-          </div>
         </div>
 
         {/* Empty State */}
-        {sortedProducts.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div
             className="my-12 py-16 px-6 text-center bg-[#2c1c12] border border-[#ece2cc]/12 rounded-xl space-y-3"
             data-testid="store-empty-state"
@@ -259,21 +222,13 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
                     <span className="font-mono text-2xl font-semibold text-[#dcb975] tabular-nums whitespace-nowrap shrink-0">
                       {formatGelPrice(spotlightProduct.priceGel)}
                     </span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center">
                       <button
                         type="button"
                         onClick={() => onSelectProduct(spotlightProduct)}
                         className="px-4 py-2.5 text-sm font-medium text-[#ece2cc] border border-[#ece2cc]/20 hover:border-[#dcb975] rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         დეტალურად
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSelectProduct(spotlightProduct)}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold bg-[#dcb975] text-[#22150d] hover:bg-[#e7c98b] active:scale-[0.98] rounded-md transition-all whitespace-nowrap shrink-0 cursor-pointer"
-                      >
-                        <DiscordIcon className="w-4 h-4 shrink-0" />
-                        <span>შეძენა Discord-ში</span>
                       </button>
                     </div>
                   </div>
@@ -342,21 +297,13 @@ export function StorePage({ onSelectProduct }: StorePageProps) {
                         {formatGelPrice(product.priceGel)}
                       </span>
 
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center">
                         <button
                           type="button"
                           onClick={() => onSelectProduct(product)}
                           className="px-3.5 py-2 text-xs font-medium text-[#ece2cc]/85 hover:text-[#dcb975] transition-colors whitespace-nowrap cursor-pointer"
                         >
                           დეტალები
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onSelectProduct(product)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#dcb975] text-[#22150d] hover:bg-[#e7c98b] active:scale-[0.98] transition-all rounded-md whitespace-nowrap cursor-pointer"
-                        >
-                          <DiscordIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>შეძენა Discord-ში</span>
                         </button>
                       </div>
                     </div>
