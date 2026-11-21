@@ -135,14 +135,48 @@ function createMediaRef(kind: 'img' | 'vid'): string {
 }
 
 /**
- * Uploads an image file locally (compresses + stores in IndexedDB) and returns
- * a persistent `idb-media://...` reference (or data URL fallback).
+ * ტვირთავს ფაილს სერვერის persistent საცავში (Railway volume → /storage).
+ * წარმატებისას აბრუნებს მუდმივ URL-ს (მაგ. /storage/abc.jpg), წარუმატებლობისას null-ს.
+ */
+async function uploadToServer(
+  blob: Blob,
+  fileName: string,
+  kind: 'image' | 'video',
+): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({ name: fileName, kind });
+    const response = await fetch(`/api/uploads?${params.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': blob.type || 'application/octet-stream',
+      },
+      body: blob,
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const json = (await response.json()) as { url?: string };
+    return typeof json.url === 'string' && json.url ? json.url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Uploads an image file: ჯერ ცდილობს სერვერზე ატვირთვას (persistent volume),
+ * თუ API მიუწვდომელია — ლოკალური IndexedDB fallback (idb-media:// ref).
  */
 export async function uploadImageFile(file: File): Promise<string> {
   if (!file.type.startsWith('image/')) {
     throw new Error('გთხოვთ აირჩიოთ სურათის ფაილი (JPG, PNG, WebP).');
   }
   const optimizedBlob = await compressImageToBlob(file, 1600);
+
+  const serverUrl = await uploadToServer(optimizedBlob, file.name, 'image');
+  if (serverUrl) {
+    return serverUrl;
+  }
+
   const ref = createMediaRef('img');
   const saved = await saveBlobToIdb(ref, optimizedBlob);
   if (saved) {
@@ -154,13 +188,19 @@ export async function uploadImageFile(file: File): Promise<string> {
 }
 
 /**
- * Uploads a Hero video file (MP4 / WebM) locally into IndexedDB and returns
- * a persistent `idb-media://...` reference without filling localStorage.
+ * Uploads a Hero video file (MP4 / WebM): ჯერ სერვერზე (persistent volume),
+ * fallback — ლოკალური IndexedDB.
  */
 export async function uploadVideoFile(file: File): Promise<string> {
   if (!file.type.startsWith('video/')) {
     throw new Error('გთხოვთ აირჩიოთ ვიდეო ფაილი (MP4 ან WebM).');
   }
+
+  const serverUrl = await uploadToServer(file, file.name, 'video');
+  if (serverUrl) {
+    return serverUrl;
+  }
+
   const ref = createMediaRef('vid');
   const saved = await saveBlobToIdb(ref, file);
   const objectUrl = URL.createObjectURL(file);

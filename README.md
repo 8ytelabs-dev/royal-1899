@@ -60,5 +60,15 @@ React + Vite ფრონტენდი და Express + Drizzle ORM (PostgreSQ
 და `DISCORD_REDIRECT_URI` ([Discord Developer Portal](https://discord.com/developers/applications)).
 Redirect URI უნდა ემთხვეოდეს `/api/auth/discord/callback` მისამართს.
 
+## Railway Deploy
+
+ერთი სერვისი ემსახურება ფრონტსაც და API-საც:
+
+1. **Variables**: დაამატეთ `DATABASE_URL` (Railway Postgres-ის internal URL).
+2. **Volume**: მიამაგრეთ volume mount path-ით `/storage` — ატვირთული ფოტოები/ვიდეოები აქ ინახება და deploy-ებს შორის არ იკარგება.
+3. **Build**: `npm run build` (ავტომატურად), **Start**: `npm start` — start სკრიპტი ჯერ სქემას აწევს ბაზაში (`drizzle-kit push`), შემდეგ უშვებს Express სერვერს, რომელიც production-ში `dist/`-საც ემსახურება.
+
+შენიშვნა: `postgres.railway.internal` ჰოსტი მხოლოდ Railway-ის შიდა ქსელიდან მუშაობს — ლოკალური dev-ისთვის გამოიყენეთ ცალკე ბაზა (მაგ. Neon) `.env`-ში.
+
 ---
 Made by DevraStudio
