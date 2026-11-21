@@ -153,6 +153,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
         .catch(() => undefined);
     };
     const intervalId = window.setInterval(refresh, 30_000);
+    refresh();
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);

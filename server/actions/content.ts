@@ -31,6 +31,7 @@ import {
   siteCopy,
   wantedSuspects,
 } from '../schema';
+import { fetchLiveStatus } from './serverStatus';
 
 /**
  * მთლიანი საიტის კონტენტის აგრეგატი.
@@ -55,6 +56,7 @@ export async function readFullContent(): Promise<{
     keybindRows,
     faqRows,
     wantedRows,
+    liveStatus,
   ] = await Promise.all([
     db.select().from(siteCopy),
     db.select().from(serverStatus),
@@ -65,6 +67,7 @@ export async function readFullContent(): Promise<{
     db.select().from(keybinds).orderBy(keybinds.position),
     db.select().from(guideFaqs).orderBy(guideFaqs.position),
     db.select().from(wantedSuspects).orderBy(wantedSuspects.position),
+    fetchLiveStatus(),
   ]);
 
   const defaults = createDefaultSiteContent();
@@ -80,9 +83,12 @@ export async function readFullContent(): Promise<{
     initialized: copyRows.length > 0,
     content: {
       copy,
-      serverStatus: statusRows[0]
-        ? serverStatusRowToDomain(statusRows[0])
-        : defaults.serverStatus,
+      serverStatus: {
+        ...(statusRows[0]
+          ? serverStatusRowToDomain(statusRows[0])
+          : defaults.serverStatus),
+        ...(liveStatus ?? {}),
+      },
       products: productRows.map(productRowToDomain),
       rules: ruleRows.map(ruleRowToDomain),
       mapLocations: locationRows.map(mapLocationRowToDomain),

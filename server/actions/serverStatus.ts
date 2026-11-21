@@ -24,7 +24,7 @@ let liveCache: {
   data: Partial<ServerStatusSnapshot> | null;
 } = { at: 0, data: null };
 
-async function fetchLiveStatus(): Promise<Partial<ServerStatusSnapshot> | null> {
+export async function fetchLiveStatus(): Promise<Partial<ServerStatusSnapshot> | null> {
   const directUrl = process.env.REDM_SERVER_URL;
   const cfxCode = process.env.REDM_CFX_CODE;
   if (!directUrl && !cfxCode) {
