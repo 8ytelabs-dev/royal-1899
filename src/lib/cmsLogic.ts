@@ -1,7 +1,7 @@
 import { SITE_CONFIG } from '../config/siteConfig';
 import { MAP_LOCATIONS } from '../data/mapLocations';
 import { STORE_PRODUCTS } from '../data/products';
-import { SERVER_RULES } from '../data/rules';
+import { RULE_CATEGORIES, SERVER_RULES } from '../data/rules';
 import {
   GUIDE_FAQS,
   GUIDE_STEPS,
@@ -127,6 +127,9 @@ export function createDefaultSiteContent(): SiteContentState {
     serverStatus: { ...INITIAL_SERVER_STATUS },
     products: STORE_PRODUCTS.map((p) => ({ ...p, perks: [...p.perks] })),
     rules: SERVER_RULES.map((r) => ({ ...r })),
+    ruleCategories: RULE_CATEGORIES.filter((c) => c.id !== 'all').map((c) => ({
+      ...c,
+    })),
     mapLocations: MAP_LOCATIONS.map((l) => ({
       ...l,
       coords: { ...l.coords },
@@ -204,6 +207,10 @@ export function mergeSiteContent(
       ? incoming.products
       : defaults.products,
     rules: Array.isArray(incoming.rules) ? incoming.rules : defaults.rules,
+    ruleCategories:
+      Array.isArray(incoming.ruleCategories) && incoming.ruleCategories.length > 0
+        ? incoming.ruleCategories
+        : defaults.ruleCategories,
     mapLocations: Array.isArray(incoming.mapLocations)
       ? incoming.mapLocations
       : defaults.mapLocations,

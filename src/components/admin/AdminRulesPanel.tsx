@@ -1,24 +1,26 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Check, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { useSiteContent } from '../../context/SiteContentContext';
-import { RULE_CATEGORIES } from '../../data/rules';
-import type { RuleCategoryId, ServerRule } from '../../types';
-
-const RULE_CATEGORY_OPTIONS = RULE_CATEGORIES.filter((c) => c.id !== 'all') as Array<{
-  id: ServerRule['category'];
-  label: string;
-}>;
+import type { RuleCategoryId, RuleCategoryMeta, ServerRule } from '../../types';
 
 const inputClass =
   'w-full px-3.5 py-2.5 text-sm bg-[#140c07] border border-[#ece2cc]/14 hover:border-[#ece2cc]/25 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/45 focus:outline-none transition-colors';
 const labelClass = 'block text-xs font-medium text-[#dcb975] mb-1.5';
 
-function buildEmptyRule(): ServerRule {
+function buildEmptyRule(defaultCategory?: RuleCategoryMeta): ServerRule {
   return {
     id: '',
     code: '§1.5',
-    category: 'general',
-    categoryLabel: 'ძირითადი წესები',
+    category: defaultCategory?.id ?? 'general',
+    categoryLabel: defaultCategory?.label ?? 'ზოგადი წესები',
     title: '',
     summary: '',
     details: '',
@@ -28,13 +30,115 @@ function buildEmptyRule(): ServerRule {
 }
 
 export function AdminRulesPanel() {
-  const { content, saveRule, removeRule } = useSiteContent();
+  const { content, saveRule, removeRule, updateRuleCategories } =
+    useSiteContent();
+  const ruleCategories = content.ruleCategories;
   const [filterCat, setFilterCat] = useState<RuleCategoryId>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editing, setEditing] = useState<ServerRule>(() => buildEmptyRule());
+  const [editing, setEditing] = useState<ServerRule>(() =>
+    buildEmptyRule(content.ruleCategories[0]),
+  );
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /* --- წესების თავების მართვა --- */
+  const [chapterDrafts, setChapterDrafts] = useState<RuleCategoryMeta[]>(() =>
+    content.ruleCategories.map((c) => ({ ...c })),
+  );
+  const [chaptersDirty, setChaptersDirty] = useState(false);
+  const [chapterNotice, setChapterNotice] = useState<string | null>(null);
+  const [chapterError, setChapterError] = useState<string | null>(null);
+
+  // სერვერიდან ჩატვირთვისას დრაფტების სინქრონიზაცია (თუ ლოკალური ცვლილება არ არის)
+  useEffect(() => {
+    if (!chaptersDirty) {
+      setChapterDrafts(content.ruleCategories.map((c) => ({ ...c })));
+    }
+  }, [content.ruleCategories, chaptersDirty]);
+
+  const editChapter = (
+    index: number,
+    patch: Partial<RuleCategoryMeta>,
+  ) => {
+    setChapterDrafts((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+    );
+    setChaptersDirty(true);
+    setChapterNotice(null);
+  };
+
+  const moveChapter = (index: number, direction: -1 | 1) => {
+    setChapterDrafts((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setChaptersDirty(true);
+    setChapterNotice(null);
+  };
+
+  const addChapter = () => {
+    setChapterDrafts((prev) => [
+      ...prev,
+      {
+        id: `chapter-${Date.now().toString(36)}`,
+        label: '',
+        chapterNumber: String(prev.length + 1).padStart(2, '0'),
+      },
+    ]);
+    setChaptersDirty(true);
+    setChapterNotice(null);
+  };
+
+  const removeChapter = (index: number) => {
+    const chapter = chapterDrafts[index];
+    const usedBy = content.rules.filter((r) => r.category === chapter.id).length;
+    if (usedBy > 0) {
+      setChapterError(
+        `თავი „${chapter.label}" ვერ წაიშლება — მასში ${usedBy} წესია. ჯერ გადაიტანეთ ან წაშალეთ წესები.`,
+      );
+      return;
+    }
+    setChapterDrafts((prev) => prev.filter((_, i) => i !== index));
+    setChaptersDirty(true);
+    setChapterError(null);
+    setChapterNotice(null);
+  };
+
+  const saveChapters = () => {
+    const cleaned = chapterDrafts.map((c) => ({
+      id: c.id,
+      label: c.label.trim(),
+      chapterNumber: c.chapterNumber?.trim() || undefined,
+    }));
+    if (cleaned.length === 0 || cleaned.some((c) => !c.label)) {
+      setChapterError('ყველა თავს სჭირდება სახელი და მინიმუმ ერთი თავი უნდა არსებობდეს.');
+      return;
+    }
+    updateRuleCategories(cleaned);
+    // არსებული წესების categoryLabel-ის სინქრონიზაცია გადარქმეულ თავებთან
+    for (const rule of content.rules) {
+      const category = cleaned.find((c) => c.id === rule.category);
+      if (category && category.label !== rule.categoryLabel) {
+        saveRule({ ...rule, categoryLabel: category.label });
+      }
+    }
+    setChaptersDirty(false);
+    setChapterError(null);
+    setChapterNotice('თავები შენახულია — ცვლილებები აისახა წესების გვერდზე.');
+  };
+
+  const resetChapters = () => {
+    setChapterDrafts(content.ruleCategories.map((c) => ({ ...c })));
+    setChaptersDirty(false);
+    setChapterError(null);
+    setChapterNotice(null);
+  };
 
   const visibleRules = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -57,7 +161,7 @@ export function AdminRulesPanel() {
   };
 
   const resetToNew = () => {
-    setEditing(buildEmptyRule());
+    setEditing(buildEmptyRule(ruleCategories[0]));
     setIsEditingExisting(false);
     setError(null);
   };
@@ -70,14 +174,18 @@ export function AdminRulesPanel() {
     }
 
     const catMeta =
-      RULE_CATEGORY_OPTIONS.find((c) => c.id === editing.category) ??
-      RULE_CATEGORY_OPTIONS[0];
+      ruleCategories.find((c) => c.id === editing.category) ??
+      ruleCategories[0];
+    if (!catMeta) {
+      setError('ჯერ შექმენით მინიმუმ ერთი თავი.');
+      return;
+    }
     const id = editing.id || `rule-${Date.now().toString(36)}`;
 
     const payload: ServerRule = {
       id,
       code: editing.code.trim(),
-      category: editing.category,
+      category: catMeta.id,
       categoryLabel: catMeta.label,
       title: editing.title.trim(),
       summary: editing.summary.trim(),
@@ -97,7 +205,128 @@ export function AdminRulesPanel() {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-7 items-start">
+    <div className="space-y-6">
+      {/* Rule Chapters Management */}
+      <div className="bg-[#22150d] border border-[#ece2cc]/10 rounded-lg p-5 lg:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-semibold text-[#ece2cc]">
+              წესების თავები
+            </h2>
+            <p className="text-xs text-[#c2b398] mt-0.5">
+              დაამატეთ, გადაარქვით ან გადაალაგეთ კოდექსის თავები — თანმიმდევრობა
+              ზუსტად ასე გამოჩნდება წესების გვერდზე.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {chaptersDirty && (
+              <button
+                type="button"
+                onClick={resetChapters}
+                className="px-3 py-2 text-xs font-medium text-[#c2b398] hover:text-[#ece2cc] bg-[#140c07] border border-[#ece2cc]/12 rounded-md cursor-pointer"
+              >
+                გაუქმება
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={addChapter}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#140c07] border border-[#dcb975]/40 text-[#dcb975] hover:border-[#dcb975] rounded-md cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>თავის დამატება</span>
+            </button>
+            <button
+              type="button"
+              onClick={saveChapters}
+              disabled={!chaptersDirty}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#dcb975] text-[#1a1009] hover:bg-[#e7c98b] rounded-md cursor-pointer whitespace-nowrap disabled:opacity-45 disabled:cursor-default"
+            >
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>თავების შენახვა</span>
+            </button>
+          </div>
+        </div>
+
+        {chapterNotice && (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-md bg-[#140c07] border border-[#dcb975]/40 text-xs text-[#dcb975]">
+            <Check className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>{chapterNotice}</span>
+          </div>
+        )}
+        {chapterError && (
+          <div className="px-3.5 py-2.5 rounded-md bg-[#3c1b15] border border-[#e68a73]/40 text-xs text-[#f2b5a4]">
+            {chapterError}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {chapterDrafts.map((chapter, index) => {
+            const rulesInChapter = content.rules.filter(
+              (r) => r.category === chapter.id,
+            ).length;
+            return (
+              <div
+                key={chapter.id}
+                className="flex flex-wrap items-center gap-2 bg-[#140c07] border border-[#ece2cc]/10 rounded-md px-3 py-2.5"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => moveChapter(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`თავის აწევა: ${chapter.label}`}
+                    className="p-1 text-[#c2b398] hover:text-[#dcb975] disabled:opacity-25 disabled:cursor-default cursor-pointer"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveChapter(index, 1)}
+                    disabled={index === chapterDrafts.length - 1}
+                    aria-label={`თავის ჩაწევა: ${chapter.label}`}
+                    className="p-1 text-[#c2b398] hover:text-[#dcb975] disabled:opacity-25 disabled:cursor-default cursor-pointer"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={chapter.chapterNumber ?? ''}
+                  onChange={(e) =>
+                    editChapter(index, { chapterNumber: e.target.value })
+                  }
+                  placeholder="№"
+                  aria-label="თავის ნომერი"
+                  className="w-14 px-2 py-2 text-xs font-mono text-center bg-[#22150d] border border-[#ece2cc]/14 focus:border-[#dcb975] rounded-md text-[#dcb975] focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={chapter.label}
+                  onChange={(e) => editChapter(index, { label: e.target.value })}
+                  placeholder="თავის სახელი (მაგ. ზოგადი წესები)"
+                  aria-label="თავის სახელი"
+                  className="flex-1 min-w-40 px-3 py-2 text-sm bg-[#22150d] border border-[#ece2cc]/14 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/45 focus:outline-none"
+                />
+                <span className="text-[11px] font-mono tabular-nums text-[#c2b398] whitespace-nowrap">
+                  {rulesInChapter} წესი
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeChapter(index)}
+                  aria-label={`თავის წაშლა: ${chapter.label}`}
+                  className="p-2 text-[#c2b398] hover:text-[#e68a73] rounded-md hover:bg-[#22150d] transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-7 items-start">
       {/* Left: Existing Rules Directory */}
       <div className="xl:col-span-5 bg-[#22150d] border border-[#ece2cc]/10 rounded-lg overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-[#ece2cc]/10 flex items-center justify-between gap-3">
@@ -140,7 +369,7 @@ export function AdminRulesPanel() {
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {RULE_CATEGORIES.map((c) => (
+            {[{ id: 'all', label: 'ყველა თავი' }, ...ruleCategories].map((c) => (
               <button
                 key={c.id}
                 type="button"
@@ -286,12 +515,12 @@ export function AdminRulesPanel() {
               onChange={(e) =>
                 setEditing({
                   ...editing,
-                  category: e.target.value as ServerRule['category'],
+                  category: e.target.value,
                 })
               }
               className={inputClass}
             >
-              {RULE_CATEGORY_OPTIONS.map((c) => (
+              {ruleCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -384,6 +613,7 @@ export function AdminRulesPanel() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

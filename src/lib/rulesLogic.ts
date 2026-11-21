@@ -29,17 +29,12 @@ export function filterServerRules(
   });
 }
 
-export function countRulesByCategory(rules: ServerRule[]): Record<RuleCategoryId, number> {
-  const counts: Record<RuleCategoryId, number> = {
-    all: rules.length,
-    general: 0,
-    roleplay: 0,
-    crime: 0,
-    law: 0,
-    economy: 0,
-  };
+export function countRulesByCategory(
+  rules: ServerRule[],
+): Record<RuleCategoryId, number> {
+  const counts: Record<RuleCategoryId, number> = { all: rules.length };
   for (const rule of rules) {
-    counts[rule.category] += 1;
+    counts[rule.category] = (counts[rule.category] ?? 0) + 1;
   }
   return counts;
 }

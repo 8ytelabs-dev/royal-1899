@@ -3,6 +3,7 @@ import type {
   GuideStep,
   KeybindItem,
   MapLocation,
+  RuleCategoryMeta,
   ServerRule,
   ServerStatusSnapshot,
   SiteContentState,
@@ -91,6 +92,15 @@ export async function saveRule(rule: ServerRule): Promise<void> {
 
 export async function deleteRule(ruleId: string): Promise<void> {
   await request(`/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' });
+}
+
+export async function replaceRuleCategories(
+  categories: RuleCategoryMeta[],
+): Promise<void> {
+  await request('/rule-categories', {
+    method: 'PUT',
+    body: JSON.stringify(categories),
+  });
 }
 
 export async function saveMapLocation(location: MapLocation): Promise<void> {

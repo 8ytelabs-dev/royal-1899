@@ -88,6 +88,17 @@ export const products = pgTable('products', {
 /* სერვერის წესები                                                      */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* წესების თავები (კატეგორიები)                                        */
+/* ------------------------------------------------------------------ */
+
+export const ruleCategories = pgTable('rule_categories', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  label: text('label').notNull(),
+  chapterNumber: varchar('chapter_number', { length: 8 }),
+  position: integer('position').notNull().default(0),
+});
+
 export const rules = pgTable('rules', {
   id: varchar('id', { length: 128 }).primaryKey(),
   code: varchar('code', { length: 32 }).notNull(),

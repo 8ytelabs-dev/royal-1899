@@ -47,18 +47,12 @@ export interface StoreProduct {
   perks: string[];
 }
 
-export type RuleCategoryId =
-  | 'all'
-  | 'general'
-  | 'roleplay'
-  | 'crime'
-  | 'law'
-  | 'economy';
+export type RuleCategoryId = string;
 
 export interface ServerRule {
   id: string;
   code: string;
-  category: Exclude<RuleCategoryId, 'all'>;
+  category: string;
   categoryLabel: string;
   title: string;
   summary: string;
@@ -346,6 +340,7 @@ export interface SiteContentState {
   serverStatus: ServerStatusSnapshot;
   products: StoreProduct[];
   rules: ServerRule[];
+  ruleCategories: RuleCategoryMeta[];
   mapLocations: MapLocation[];
   guideSteps: GuideStep[];
   keybinds: KeybindItem[];

@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { useSiteContent } from '../context/SiteContentContext';
-import { RULE_CATEGORIES } from '../data/rules';
 import { countRulesByCategory, filterServerRules } from '../lib/rulesLogic';
-import type { RuleCategoryId } from '../types';
+import type { RuleCategoryId, RuleCategoryMeta } from '../types';
 
 const ACK_STORAGE_KEY = 'royal_1899_rules_acknowledged';
 
@@ -28,6 +27,10 @@ export function RulesPage() {
   const counts = useMemo(
     () => countRulesByCategory(content.rules),
     [content.rules],
+  );
+  const categories = useMemo<RuleCategoryMeta[]>(
+    () => [{ id: 'all', label: 'ყველა თავი' }, ...content.ruleCategories],
+    [content.ruleCategories],
   );
   const filteredRules = useMemo(
     () => filterServerRules(content.rules, selectedCategory, searchQuery),
@@ -102,7 +105,7 @@ export function RulesPage() {
           {/* Left Sticky Chapter Selector */}
           <aside className="lg:col-span-4 lg:sticky lg:top-28 space-y-6">
             <nav aria-label="წესების თავები" className="space-y-1.5">
-              {RULE_CATEGORIES.map((category) => {
+              {categories.map((category) => {
                 const isActive = selectedCategory === category.id;
                 return (
                   <button
@@ -125,7 +128,7 @@ export function RulesPage() {
                       <span className="truncate">{category.label}</span>
                     </span>
                     <span className="font-mono text-xs tabular-nums opacity-80 shrink-0">
-                      {counts[category.id]}
+                      {counts[category.id] ?? 0}
                     </span>
                   </button>
                 );

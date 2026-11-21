@@ -3,6 +3,7 @@ import type {
   GuideStep,
   KeybindItem,
   MapLocation,
+  RuleCategoryMeta,
   ServerRule,
   ServerStatusSnapshot,
   StoreProduct,
@@ -14,6 +15,7 @@ import type {
   keybinds,
   mapLocations,
   products,
+  ruleCategories,
   rules,
   serverStatus,
   wantedSuspects,
@@ -76,6 +78,28 @@ export function productDomainToRow(
 }
 
 /* ------------------------------ Rules ----------------------------- */
+
+type RuleCategoryRow = typeof ruleCategories.$inferSelect;
+
+export function ruleCategoryRowToDomain(row: RuleCategoryRow): RuleCategoryMeta {
+  return {
+    id: row.id,
+    label: row.label,
+    chapterNumber: row.chapterNumber ?? undefined,
+  };
+}
+
+export function ruleCategoryDomainToRow(
+  category: RuleCategoryMeta,
+  position: number,
+): typeof ruleCategories.$inferInsert {
+  return {
+    id: category.id,
+    label: category.label,
+    chapterNumber: category.chapterNumber ?? null,
+    position,
+  };
+}
 
 export function ruleRowToDomain(row: RuleRow): ServerRule {
   return {

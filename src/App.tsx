@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { Footer } from './components/Footer';
 import { Navbar } from './components/Navbar';
 import { ProductDetailModal } from './components/ProductDetailModal';
+import { SITE_CONFIG } from './config/siteConfig';
 import { SiteContentProvider } from './context/SiteContentContext';
 import { AdminPage } from './pages/AdminPage';
 import { BountiesPage } from './pages/BountiesPage';
@@ -13,6 +14,17 @@ import { MapPage } from './pages/MapPage';
 import { RulesPage } from './pages/RulesPage';
 import { StorePage } from './pages/StorePage';
 import type { AppRoute, MapRealm, StoreProduct } from './types';
+
+const ROUTE_TITLES: Record<AppRoute, string> = {
+  '/': 'მთავარი',
+  '/store': 'მაღაზია',
+  '/rules': 'წესები',
+  '/map': 'რუკა',
+  '/guide': 'თამაშის დაწყება',
+  '/bounties': 'ძებნილები',
+  '/login': 'კაბინეტი',
+  '/admin': 'ადმინ პანელი',
+};
 
 function parseRouteFromPathname(pathname: string): AppRoute {
   if (pathname === '/store' || pathname.startsWith('/store/')) {
@@ -49,6 +61,11 @@ export default function App() {
     parseRouteFromPathname(window.location.pathname),
   );
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
+
+  // გვერდის სათაური route-ის მიხედვით, მაგ. „ROYAL 1899 — მაღაზია"
+  useEffect(() => {
+    document.title = `${SITE_CONFIG.brandName} — ${ROUTE_TITLES[route]}`;
+  }, [route]);
 
   useEffect(() => {
     const handlePopState = () => {

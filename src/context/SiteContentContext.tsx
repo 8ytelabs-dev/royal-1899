@@ -25,6 +25,7 @@ import type {
   GuideStep,
   KeybindItem,
   MapLocation,
+  RuleCategoryMeta,
   ServerRule,
   ServerStatusSnapshot,
   SiteContentState,
@@ -60,6 +61,7 @@ interface SiteContentContextValue {
   removeProduct: (productId: string) => void;
   saveRule: (rule: ServerRule) => void;
   removeRule: (ruleId: string) => void;
+  updateRuleCategories: (categories: RuleCategoryMeta[]) => void;
   saveMapLocation: (location: MapLocation) => void;
   removeMapLocation: (locationId: string) => void;
   updateGuideSteps: (steps: GuideStep[]) => void;
@@ -252,6 +254,14 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     void cmsApi.deleteRule(ruleId).catch(logApiError);
   }, []);
 
+  const updateRuleCategories = useCallback(
+    (categories: RuleCategoryMeta[]) => {
+      setContent((prev) => ({ ...prev, ruleCategories: categories }));
+      void cmsApi.replaceRuleCategories(categories).catch(logApiError);
+    },
+    [],
+  );
+
   const saveMapLocation = useCallback((location: MapLocation) => {
     setContent((prev) => ({
       ...prev,
@@ -319,6 +329,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       removeProduct,
       saveRule,
       removeRule,
+      updateRuleCategories,
       saveMapLocation,
       removeMapLocation,
       updateGuideSteps,
@@ -336,6 +347,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       removeProduct,
       saveRule,
       removeRule,
+      updateRuleCategories,
       saveMapLocation,
       removeMapLocation,
       updateGuideSteps,

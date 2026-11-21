@@ -14,6 +14,8 @@ import {
   mapLocationRowToDomain,
   productDomainToRow,
   productRowToDomain,
+  ruleCategoryDomainToRow,
+  ruleCategoryRowToDomain,
   ruleDomainToRow,
   ruleRowToDomain,
   serverStatusRowToDomain,
@@ -26,6 +28,7 @@ import {
   keybinds,
   mapLocations,
   products,
+  ruleCategories,
   rules,
   serverStatus,
   siteCopy,
@@ -51,6 +54,7 @@ export async function readFullContent(): Promise<{
     statusRows,
     productRows,
     ruleRows,
+    ruleCategoryRows,
     locationRows,
     stepRows,
     keybindRows,
@@ -62,6 +66,7 @@ export async function readFullContent(): Promise<{
     db.select().from(serverStatus),
     db.select().from(products).orderBy(products.position),
     db.select().from(rules).orderBy(rules.position),
+    db.select().from(ruleCategories).orderBy(ruleCategories.position),
     db.select().from(mapLocations).orderBy(mapLocations.position),
     db.select().from(guideSteps).orderBy(guideSteps.position),
     db.select().from(keybinds).orderBy(keybinds.position),
@@ -91,6 +96,10 @@ export async function readFullContent(): Promise<{
       },
       products: productRows.map(productRowToDomain),
       rules: ruleRows.map(ruleRowToDomain),
+      ruleCategories:
+        ruleCategoryRows.length > 0
+          ? ruleCategoryRows.map(ruleCategoryRowToDomain)
+          : defaults.ruleCategories,
       mapLocations: locationRows.map(mapLocationRowToDomain),
       guideSteps: stepRows.map(guideStepRowToDomain),
       keybinds: keybindRows.map(keybindRowToDomain),
@@ -134,6 +143,15 @@ export async function replaceFullContent(state: SiteContentState): Promise<void>
       await tx
         .insert(rules)
         .values(state.rules.map((r, i) => ruleDomainToRow(r, i)));
+    }
+
+    await tx.delete(ruleCategories);
+    if (Array.isArray(state.ruleCategories) && state.ruleCategories.length > 0) {
+      await tx
+        .insert(ruleCategories)
+        .values(
+          state.ruleCategories.map((c, i) => ruleCategoryDomainToRow(c, i)),
+        );
     }
 
     await tx.delete(mapLocations);
