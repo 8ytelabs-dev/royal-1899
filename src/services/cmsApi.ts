@@ -64,6 +64,11 @@ export async function saveServerStatus(
   });
 }
 
+/** ლაივ სერვერის სტატუსი — playersOnline/maxPlayers რეალურ დროში. */
+export async function fetchServerStatus(): Promise<ServerStatusSnapshot> {
+  return request('/server-status');
+}
+
 export async function saveProduct(product: StoreProduct): Promise<void> {
   await request(`/products/${encodeURIComponent(product.id)}`, {
     method: 'PUT',

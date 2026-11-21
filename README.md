@@ -54,6 +54,15 @@ React + Vite ფრონტენდი და Express + Drizzle ORM (PostgreSQ
 | `npm run build` | ფრონტის production build |
 | `npm run lint` | ტიპების შემოწმება |
 
+## RedM ლაივ სტატუსი
+
+Hero სექციაში რეალური მოთამაშეების რაოდენობის საჩვენებლად `.env`-ში (ან Railway Variables-ში) მიუთითეთ ერთ-ერთი:
+
+- `REDM_SERVER_URL=http://<სერვერის-IP>:30120` — სერვერის პირდაპირი მისამართი (`dynamic.json` ენდპოინტი)
+- `REDM_CFX_CODE=abc123` — cfx.re join კოდი (`https://cfx.re/join/abc123`-დან)
+
+ბექენდი მონაცემებს ყოველ 15 წამში აახლებს (cache), ფრონტი — ყოველ 30 წამში. თუ RedM სერვერი მიუწვდომელია, სტატუსი ავტომატურად „offline" ხდება.
+
 ## Discord OAuth
 
 რეგისტრაციისთვის შეავსეთ `.env`-ში `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`

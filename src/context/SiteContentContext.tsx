@@ -135,6 +135,30 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ლაივ სერვერის სტატუსის განახლება ყოველ 30 წამში (მხოლოდ ლოკალური state —
+  // ბაზაში არ იწერება). playersOnline/maxPlayers მოდის RedM სერვერიდან.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      cmsApi
+        .fetchServerStatus()
+        .then((status) => {
+          if (!cancelled) {
+            setContent((prev) => ({
+              ...prev,
+              serverStatus: { ...prev.serverStatus, ...status },
+            }));
+          }
+        })
+        .catch(() => undefined);
+    };
+    const intervalId = window.setInterval(refresh, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
