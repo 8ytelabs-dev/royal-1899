@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import {
   Check,
@@ -16,7 +16,12 @@ import { MediaImage } from '../components/MediaImage';
 import { useSiteContent } from '../context/SiteContentContext';
 import { DEMO_PLAYER_CABINET } from '../data/serverPortal';
 import { formatUsdReward } from '../lib/portalLogic';
-import { fetchCurrentUser, logoutUser, type AuthUser } from '../services/cmsApi';
+import {
+  fetchCurrentUser,
+  loginWithPassword,
+  logoutUser,
+  type AuthUser,
+} from '../services/cmsApi';
 import type { MapRealm } from '../types';
 
 interface CabinetPageProps {
@@ -38,6 +43,12 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [activeTab, setActiveTab] = useState<CabinetTab>('overview');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [passwordLoginLoading, setPasswordLoginLoading] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const profile = DEMO_PLAYER_CABINET;
 
@@ -59,9 +70,32 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
     window.location.href = '/api/auth/discord';
   };
 
-  const handleLogout = () => {
-    setAuthUser(null);
-    void logoutUser().catch(() => undefined);
+  const handlePasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordLoginLoading(true);
+    setLoginError('');
+    try {
+      const user = await loginWithPassword(loginEmail, loginPassword);
+      setAuthUser(user);
+      setLoginPassword('');
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'შესვლა ვერ მოხერხდა.');
+    } finally {
+      setPasswordLoginLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setLogoutError('');
+    try {
+      await logoutUser();
+      setAuthUser(null);
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : 'გამოსვლა ვერ მოხერხდა.');
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   if (!authUser) {
@@ -143,6 +177,53 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
                       className="absolute inset-0 rounded-md ring-1 ring-inset ring-[#22150d]/10"
                     />
                   </button>
+
+                  <form
+                    onSubmit={handlePasswordLogin}
+                    className="w-full max-w-sm space-y-3 border-t border-[#ece2cc]/10 pt-4"
+                  >
+                    <p className="text-xs font-medium text-[#dcb975]">
+                      ან ელფოსტით და პაროლით
+                    </p>
+                    <label className="sr-only" htmlFor="cabinet-login-email">
+                      ელფოსტა
+                    </label>
+                    <input
+                      id="cabinet-login-email"
+                      type="email"
+                      autoComplete="username"
+                      placeholder="ელფოსტა"
+                      required
+                      value={loginEmail}
+                      onChange={(event) => setLoginEmail(event.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm bg-[#140c07] border border-[#ece2cc]/14 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/55 focus:outline-none"
+                    />
+                    <label className="sr-only" htmlFor="cabinet-login-password">
+                      პაროლი
+                    </label>
+                    <input
+                      id="cabinet-login-password"
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder="პაროლი"
+                      required
+                      value={loginPassword}
+                      onChange={(event) => setLoginPassword(event.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm bg-[#140c07] border border-[#ece2cc]/14 focus:border-[#dcb975] rounded-md text-[#ece2cc] placeholder:text-[#c2b398]/55 focus:outline-none"
+                    />
+                    {loginError && (
+                      <p role="alert" className="text-xs text-red-300">
+                        {loginError}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={passwordLoginLoading}
+                      className="w-full px-4 py-2.5 text-sm font-medium border border-[#dcb975]/40 text-[#ece2cc] hover:border-[#dcb975] hover:text-[#dcb975] rounded-md transition-colors disabled:opacity-60 cursor-pointer"
+                    >
+                      {passwordLoginLoading ? 'მიმდინარეობს შესვლა…' : 'შესვლა'}
+                    </button>
+                  </form>
 
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-[#c2b398]">
                     <span className="inline-flex items-center gap-1.5">
@@ -277,7 +358,8 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
 
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium bg-[#22150d] border border-[#ece2cc]/15 hover:border-[#dcb975] text-[#c2b398] hover:text-[#ece2cc] rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
@@ -285,6 +367,11 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
             </button>
           </div>
         </motion.section>
+        {logoutError && (
+          <p role="alert" className="text-sm text-red-300">
+            {logoutError}
+          </p>
+        )}
 
         {/* Cabinet Section Tabs */}
         <div

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { getSessionUser } from './authSession';
 
 /**
  * Express 4-ში async ჰენდლერების შეცდომები ავტომატურად არ გადაეცემა
@@ -12,20 +13,18 @@ export function asyncHandler(
   };
 }
 
-/**
- * არასავალდებულო დაცვა ადმინის mutation ენდპოინტებზე.
- * თუ ADMIN_API_TOKEN გარემოს ცვლადი დაყენებულია, მოთხოვნას უნდა ჰქონდეს
- * შესაბამისი `x-admin-token` ჰედერი. თუ ცვლადი არ არის — დაშვებულია (dev რეჟიმი).
- */
 export const adminGuard: RequestHandler = (req, res, next) => {
-  const expected = process.env.ADMIN_API_TOKEN;
-  if (!expected) {
-    next();
-    return;
-  }
-  if (req.headers['x-admin-token'] === expected) {
-    next();
-    return;
-  }
-  res.status(401).json({ error: 'არასწორი ან აკლია ადმინის ტოკენი' });
+  void getSessionUser(req)
+    .then((user) => {
+      if (!user) {
+        res.status(401).json({ error: 'ადმინად შესვლა საჭიროა' });
+        return;
+      }
+      if (user.role !== 'admin') {
+        res.status(403).json({ error: 'ადმინისტრატორის უფლება საჭიროა' });
+        return;
+      }
+      next();
+    })
+    .catch(next);
 };

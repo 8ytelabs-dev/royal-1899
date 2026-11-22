@@ -27,7 +27,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    throw new Error(`API ${path} → ${response.status}`);
+    const body = (await response.json().catch(() => null)) as
+      | { error?: unknown }
+      | null;
+    throw new Error(
+      typeof body?.error === 'string'
+        ? body.error
+        : `API ${path} → ${response.status}`,
+    );
   }
   return (await response.json()) as T;
 }
@@ -160,11 +167,44 @@ export async function registerMediaAsset(asset: {
 
 export interface AuthUser {
   id: string;
-  discordId: string;
+  discordId: string | null;
   username: string;
   globalName: string | null;
+  email: string | null;
   avatarUrl: string | null;
   role: string;
+}
+
+export interface AdminAccount {
+  id: string;
+  email: string;
+  role: 'admin' | 'member';
+  createdAt: string;
+}
+
+export async function loginWithPassword(
+  email: string,
+  password: string,
+): Promise<AuthUser> {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function fetchAdminAccounts(): Promise<AdminAccount[]> {
+  return request('/auth/admin/accounts');
+}
+
+export async function createAdminAccount(input: {
+  email: string;
+  password: string;
+  role: AdminAccount['role'];
+}): Promise<AdminAccount> {
+  return request('/auth/admin/accounts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 /** აბრუნებს მიმდინარე სესიის მომხმარებელს, ან null-ს თუ ავტორიზებული არ არის. */

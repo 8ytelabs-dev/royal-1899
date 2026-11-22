@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import cookieParser from 'cookie-parser';
 import express from 'express';
-import { authRouter } from './actions/auth';
+import { authRouter, ensureInitialAdminAccount } from './actions/auth';
 import { contentRouter, ensureSeeded } from './actions/content';
 import { guideRouter } from './actions/guide';
 import { mapLocationsRouter } from './actions/mapLocations';
@@ -79,6 +79,7 @@ const PORT = Number(process.env.PORT ?? 3001);
 
 async function main() {
   await ensureSeeded();
+  await ensureInitialAdminAccount();
   app.listen(PORT, () => {
     console.log(`[api] გაშვებულია http://localhost:${PORT}`);
   });

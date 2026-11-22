@@ -12,7 +12,8 @@ React + Vite ფრონტენდი და Express + Drizzle ORM (PostgreSQ
    ```
    npm install
    ```
-2. შექმენით `.env` ფაილი `.env.example`-ის მიხედვით და ჩაწერეთ `DATABASE_URL`.
+2. შექმენით `.env` ფაილი `.env.example`-ის მიხედვით და ჩაწერეთ `DATABASE_URL`,
+   `ADMIN_EMAIL` და `ADMIN_PASSWORD` (საწყისი ადმინის ანგარიშისთვის).
 3. აწიეთ ბაზის სქემა:
    ```
    npm run db:push
@@ -29,9 +30,9 @@ React + Vite ფრონტენდი და Express + Drizzle ORM (PostgreSQ
 
 ## სტრუქტურა
 
-- `server/schema.ts` — Drizzle სქემები (users, sessions, site_copy, media_assets, products, rules, map_locations, server_status, guide_*, wanted_suspects)
+- `server/schema.ts` — Drizzle სქემები (users, password_accounts, sessions, site_copy, media_assets, products, rules, map_locations, server_status, guide_*, wanted_suspects)
 - `server/actions/` — API ენდპოინტები დომენებად დაყოფილი:
-  - `auth.ts` — რეგისტრაცია/ავტორიზაცია Discord OAuth-ით
+  - `auth.ts` — Discord OAuth, ელფოსტა/პაროლით შესვლა და ანგარიშების შექმნა
   - `siteCopy.ts` — საიტის ტექსტები და hero მედია
   - `media.ts` — ატვირთული ფოტო/ვიდეო URL-ების რეესტრი
   - `products.ts` — მაღაზიის პროდუქტები
@@ -69,11 +70,22 @@ Hero სექციაში რეალური მოთამაშეე�
 და `DISCORD_REDIRECT_URI` ([Discord Developer Portal](https://discord.com/developers/applications)).
 Redirect URI უნდა ემთხვეოდეს `/api/auth/discord/callback` მისამართს.
 
+## ადმინ ავტორიზაცია
+
+პირველი ადმინისტრატორის დასამატებლად სერვერის გარემოში მიუთითეთ `ADMIN_EMAIL`
+და `ADMIN_PASSWORD`. პირველ გაშვებაზე ანგარიში შეიქმნება ბაზაში; პაროლი
+`scrypt`-ით ჰეშირდება და ტექსტური სახით არ ინახება. უკვე შექმნილი ანგარიშის
+პაროლი გარემოს ცვლადების ცვლილებით არ განახლდება. სხვა ანგარიშები დაამატეთ
+ადმინ პანელის ანგარიშების განყოფილებიდან.
+ადმინ პანელის ყველა ცვლილების API მოითხოვს хүчинებიან ადმინისტრატორის სესიას.
+ანგარიშების განყოფილებიდან შესაძლებელია მომხმარებლისა და სხვა ადმინისტრატორის შექმნა.
+
 ## Railway Deploy
 
 ერთი სერვისი ემსახურება ფრონტსაც და API-საც:
 
-1. **Variables**: დაამატეთ `DATABASE_URL` (Railway Postgres-ის internal URL).
+1. **Variables**: დაამატეთ `DATABASE_URL` (Railway Postgres-ის internal URL),
+   `ADMIN_EMAIL` და `ADMIN_PASSWORD` (საწყისი ადმინის ანგარიშისთვის).
 2. **Volume**: მიამაგრეთ volume mount path-ით `/storage` — ატვირთული ფოტოები/ვიდეოები აქ ინახება და deploy-ებს შორის არ იკარგება.
 3. **Build**: `npm run build` (ავტომატურად), **Start**: `npm start` — start სკრიპტი ჯერ სქემას აწევს ბაზაში (`drizzle-kit push`), შემდეგ უშვებს Express სერვერს, რომელიც production-ში `dist/`-საც ემსახურება.
 

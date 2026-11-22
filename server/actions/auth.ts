@@ -1,12 +1,19 @@
 import crypto from 'node:crypto';
-import { eq } from 'drizzle-orm';
-import { Router, type Request } from 'express';
+import { eq, sql } from 'drizzle-orm';
+import { Router } from 'express';
 import { db } from '../db';
-import { asyncHandler } from '../http';
-import { sessions, users } from '../schema';
+import { adminGuard, asyncHandler } from '../http';
+import {
+  createSession,
+  getSessionUser,
+  SESSION_COOKIE,
+  setSessionCookie,
+} from '../authSession';
+import { hashPassword, verifyPassword } from '../passwordAuth';
+import { passwordAccounts, sessions, users } from '../schema';
 
 /**
- * რეგისტრაცია / ავტორიზაცია Discord OAuth2-ით.
+ * Discord OAuth2 და ელფოსტა/პაროლით ავტორიზაცია.
  *
  * საჭირო გარემოს ცვლადები:
  *   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI
@@ -14,12 +21,19 @@ import { sessions, users } from '../schema';
  * ენდპოინტები:
  *   GET  /api/auth/discord           → გადამისამართება Discord-ის ავტორიზაციაზე
  *   GET  /api/auth/discord/callback  → code-ის გაცვლა, მომხმარებლის რეგისტრაცია, სესიის cookie
+ *   POST /api/auth/login             → ელფოსტა/პაროლით შესვლა
  *   GET  /api/auth/me                → მიმდინარე სესიის მომხმარებელი
  *   POST /api/auth/logout            → სესიის წაშლა
  */
 
-const SESSION_COOKIE = 'royal_session';
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 დღე
+const MIN_PASSWORD_LENGTH = 10;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+const DUMMY_PASSWORD_HASH = `scrypt$${'0'.repeat(32)}$${'0'.repeat(128)}`;
+const loginAttempts = new Map<
+  string,
+  { count: number; windowStartedAt: number; lockedUntil: number }
+>();
 
 const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize';
 const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
@@ -35,22 +49,91 @@ function getDiscordConfig() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export async function getSessionUser(req: Request) {
-  const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
-  if (!token) {
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isValidEmail(email: string) {
+  return email.length <= 255 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function objectBody(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
-  const rows = await db
-    .select({ user: users, session: sessions })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.token, token))
+  return value as Record<string, unknown>;
+}
+
+function userResponse(user: typeof users.$inferSelect) {
+  return {
+    id: user.id,
+    discordId: user.discordId,
+    username: user.username,
+    globalName: user.globalName,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+    role: user.role,
+  };
+}
+
+export async function ensureInitialAdminAccount() {
+  const rawEmail = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!rawEmail || !password) {
+    console.warn(
+      '[auth] ADMIN_EMAIL / ADMIN_PASSWORD are not configured; no initial admin account was created.',
+    );
+    return;
+  }
+
+  const email = normalizeEmail(rawEmail);
+  if (
+    !isValidEmail(email) ||
+    password.length < MIN_PASSWORD_LENGTH ||
+    password.length > 256
+  ) {
+    throw new Error(
+      `Initial admin configuration is invalid: use a valid ADMIN_EMAIL and an ADMIN_PASSWORD with at least ${MIN_PASSWORD_LENGTH} characters.`,
+    );
+  }
+
+  const [existingAccount] = await db
+    .select({ userId: passwordAccounts.userId })
+    .from(passwordAccounts)
+    .where(eq(passwordAccounts.email, email))
     .limit(1);
-  const row = rows[0];
-  if (!row || row.session.expiresAt.getTime() < Date.now()) {
-    return null;
+  if (existingAccount) {
+    await db
+      .update(users)
+      .set({ role: 'admin', updatedAt: new Date() })
+      .where(eq(users.id, existingAccount.userId));
+    return;
   }
-  return row.user;
+
+  const passwordHash = await hashPassword(password);
+  await db.transaction(async (tx) => {
+    const [existingUser] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(sql`lower(${users.email}) = ${email}`)
+      .limit(1);
+    const [user] = existingUser
+      ? await tx
+          .update(users)
+          .set({ role: 'admin', updatedAt: new Date() })
+          .where(eq(users.id, existingUser.id))
+          .returning({ id: users.id })
+      : await tx
+          .insert(users)
+          .values({
+            discordId: null,
+            username: email,
+            email,
+            role: 'admin',
+          })
+          .returning({ id: users.id });
+    await tx.insert(passwordAccounts).values({ userId: user.id, email, passwordHash });
+  });
 }
 
 export const authRouter = Router();
@@ -153,20 +236,77 @@ authRouter.get(
       })
       .returning();
 
-    const [session] = await db
-      .insert(sessions)
-      .values({
-        userId: user.id,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      })
-      .returning();
-
-    res.cookie(SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: SESSION_TTL_MS,
-    });
+    const session = await createSession(user.id);
+    setSessionCookie(res, session.token);
     res.redirect('/login');
+  }),
+);
+
+authRouter.post(
+  '/login',
+  asyncHandler(async (req, res) => {
+    const body = objectBody(req.body);
+    if (
+      !body ||
+      typeof body.email !== 'string' ||
+      typeof body.password !== 'string'
+    ) {
+      res.status(400).json({ error: 'შეიყვანეთ ელფოსტა და პაროლი' });
+      return;
+    }
+
+    const email = normalizeEmail(body.email);
+    const now = Date.now();
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    let attempts = loginAttempts.get(key);
+    if (attempts && attempts.lockedUntil > now) {
+      res.status(429).json({ error: 'ძალიან ბევრი მცდელობაა. სცადეთ მოგვიანებით.' });
+      return;
+    }
+    if (
+      attempts &&
+      (now - attempts.windowStartedAt >= LOGIN_LOCKOUT_MS ||
+        (attempts.lockedUntil > 0 && attempts.lockedUntil <= now))
+    ) {
+      loginAttempts.delete(key);
+      attempts = undefined;
+    }
+    if (!isValidEmail(email)) {
+      res.status(401).json({ error: 'ელფოსტა ან პაროლი არასწორია' });
+      return;
+    }
+    if (body.password.length > 256) {
+      res.status(401).json({ error: 'ელფოსტა ან პაროლი არასწორია' });
+      return;
+    }
+
+    const [account] = await db
+      .select({ user: users, passwordHash: passwordAccounts.passwordHash })
+      .from(passwordAccounts)
+      .innerJoin(users, eq(passwordAccounts.userId, users.id))
+      .where(eq(passwordAccounts.email, email))
+      .limit(1);
+
+    const passwordMatches = await verifyPassword(
+      body.password,
+      account?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
+    if (!account || !passwordMatches) {
+      const activeAttempts = attempts ? attempts.count : 0;
+      const count = activeAttempts + 1;
+      loginAttempts.set(key, {
+        count,
+        windowStartedAt: attempts?.windowStartedAt ?? now,
+        lockedUntil: count >= MAX_LOGIN_ATTEMPTS ? now + LOGIN_LOCKOUT_MS : 0,
+      });
+      res.status(401).json({ error: 'ელფოსტა ან პაროლი არასწორია' });
+      return;
+    }
+
+    loginAttempts.delete(key);
+    const session = await createSession(account.user.id);
+    setSessionCookie(res, session.token);
+    res.json(userResponse(account.user));
   }),
 );
 
@@ -178,14 +318,100 @@ authRouter.get(
       res.status(401).json({ error: 'ავტორიზაცია საჭიროა' });
       return;
     }
-    res.json({
-      id: user.id,
-      discordId: user.discordId,
-      username: user.username,
-      globalName: user.globalName,
-      avatarUrl: user.avatarUrl,
-      role: user.role,
+    res.json(userResponse(user));
+  }),
+);
+
+authRouter.get(
+  '/admin/accounts',
+  adminGuard,
+  asyncHandler(async (_req, res) => {
+    const accounts = await db
+      .select({
+        id: users.id,
+        email: passwordAccounts.email,
+        role: users.role,
+        createdAt: users.createdAt,
+      })
+      .from(passwordAccounts)
+      .innerJoin(users, eq(passwordAccounts.userId, users.id))
+      .orderBy(users.createdAt);
+    res.json(accounts);
+  }),
+);
+
+authRouter.post(
+  '/admin/accounts',
+  adminGuard,
+  asyncHandler(async (req, res) => {
+    const body = objectBody(req.body);
+    if (
+      !body ||
+      typeof body.email !== 'string' ||
+      typeof body.password !== 'string' ||
+      (body.role !== 'admin' && body.role !== 'member')
+    ) {
+      res.status(400).json({ error: 'შეამოწმეთ ანგარიშის მონაცემები' });
+      return;
+    }
+
+    const email = normalizeEmail(body.email);
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: 'შეიყვანეთ სწორი ელფოსტა' });
+      return;
+    }
+    if (body.password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({
+        error: `პაროლი მინიმუმ ${MIN_PASSWORD_LENGTH} სიმბოლოს უნდა შეიცავდეს`,
+      });
+      return;
+    }
+    if (body.password.length > 256) {
+      res.status(400).json({ error: 'პაროლი ზედმეტად გრძელია' });
+      return;
+    }
+
+    const [existingAccount] = await db
+      .select({ email: passwordAccounts.email })
+      .from(passwordAccounts)
+      .where(eq(passwordAccounts.email, email))
+      .limit(1);
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(sql`lower(${users.email}) = ${email}`)
+      .limit(1);
+    if (existingAccount || existingUser) {
+      res.status(409).json({ error: 'ამ ელფოსტით ანგარიში უკვე არსებობს' });
+      return;
+    }
+
+    const passwordHash = await hashPassword(body.password);
+    const newUser: typeof users.$inferInsert = {
+      discordId: null,
+      username: email,
+      email,
+      role: body.role,
+    };
+    const newAccount = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values(newUser)
+        .returning({
+          id: users.id,
+          email: users.email,
+          role: users.role,
+          createdAt: users.createdAt,
+        });
+      await tx.insert(passwordAccounts).values({
+        userId: user.id,
+        email,
+        passwordHash,
+      });
+      return user;
     });
+
+    res.status(201).json(newAccount);
   }),
 );
 
@@ -196,7 +422,7 @@ authRouter.post(
     if (token) {
       await db.delete(sessions).where(eq(sessions.token, token));
     }
-    res.clearCookie(SESSION_COOKIE);
+    res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.json({ ok: true });
   }),
 );
