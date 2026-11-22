@@ -132,7 +132,10 @@ export default function App() {
                   <BountiesPage onOpenMapLocation={openMapLocation} />
                 )}
                 {route === '/login' && (
-                  <CabinetPage onOpenMapLocation={openMapLocation} />
+                  <CabinetPage
+                    onNavigate={navigate}
+                    onOpenMapLocation={openMapLocation}
+                  />
                 )}
                 {route === '/admin' && <AdminPage onNavigate={navigate} />}
               </motion.div>

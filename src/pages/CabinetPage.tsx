@@ -22,9 +22,10 @@ import {
   logoutUser,
   type AuthUser,
 } from '../services/cmsApi';
-import type { MapRealm } from '../types';
+import type { AppRoute, MapRealm } from '../types';
 
 interface CabinetPageProps {
+  onNavigate: (route: AppRoute) => void;
   onOpenMapLocation: (locationId: string, realm: MapRealm) => void;
 }
 
@@ -37,7 +38,7 @@ const CABINET_TABS: Array<{ id: CabinetTab; label: string }> = [
   { id: 'ledger', label: 'ისტორია და ჯარიმები' },
 ];
 
-export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
+export function CabinetPage({ onNavigate, onOpenMapLocation }: CabinetPageProps) {
   const { content } = useSiteContent();
   const cabinetCopy = content.copy.cabinet;
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -355,6 +356,17 @@ export function CabinetPage({ onOpenMapLocation }: CabinetPageProps) {
                 </p>
               </div>
             </div>
+
+            {authUser.role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/admin')}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[#dcb975] text-[#22150d] hover:bg-[#e7c98b] rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>ადმინ პანელი</span>
+              </button>
+            )}
 
             <button
               type="button"
